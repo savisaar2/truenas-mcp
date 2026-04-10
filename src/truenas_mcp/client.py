@@ -2,65 +2,81 @@ import json
 import asyncio
 import uuid
 import websockets
+import ssl
+import sys
 from typing import Any, Dict, Optional, List
 
 class TrueNASClient:
-    def __init__(self, url: str, api_key: str):
+    def __init__(self, url: str, api_key: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None):
         self.url = url
         self.api_key = api_key
+        self.username = username
+        self.password = password
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self._requests: Dict[str, asyncio.Future] = {}
         self._receive_task: Optional[asyncio.Task] = None
+        self._connected_event = asyncio.Event()
 
     async def connect(self):
-        """Establish connection and authenticate."""
-        self.ws = await websockets.connect(self.url)
-        
-        # 1. Send connect message
-        await self.send({
-            "msg": "connect",
-            "version": "1",
-            "support": ["1"]
-        })
+        """Establish connection using strict DDP handshake and Auth."""
+        connect_kwargs = {}
+        if self.url.startswith("wss://"):
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            connect_kwargs["ssl"] = ssl_context
 
-        # Start listening
+        print(f">>> Connecting to {self.url}", file=sys.stderr)
+        self.ws = await websockets.connect(self.url, **connect_kwargs)
         self._receive_task = asyncio.create_task(self._listen())
 
-        # Wait for connected message
-        # In a real implementation, we should wait for the "connected" msg.
-        # For simplicity in this tool-based env, we'll assume it succeeds or wait briefly.
-        
+        # 1. DDP Connect
+        await self.send({"msg": "connect", "version": "1", "support": ["1"]})
+        try:
+            await asyncio.wait_for(self._connected_event.wait(), timeout=10.0)
+            print("<<< DDP Connected", file=sys.stderr)
+        except asyncio.TimeoutError:
+            raise ConnectionError("Timeout waiting for DDP 'connected'")
+
         # 2. Authenticate
-        auth_id = str(uuid.uuid4())
-        response = await self.call("auth.login_with_api_key", [self.api_key], request_id=auth_id)
+        auth_id = "auth_login"
+        if self.username and self.password:
+            print(f">>> Sending Auth (User: {self.username})", file=sys.stderr)
+            response = await self.call("auth.login", [self.username, self.password], request_id=auth_id)
+        else:
+            print(">>> Sending Auth (API Key)", file=sys.stderr)
+            response = await self.call("auth.login_with_api_key", [self.api_key], request_id=auth_id)
         
-        if not response or response.get("error"):
-            error_msg = response.get("error", {}).get("reason", "Unknown error") if response else "No response"
-            raise ConnectionError(f"Authentication failed: {error_msg}")
+        if not response or response.get("error") or response.get("result") is not True:
+            error = response.get("error", {})
+            print(f"!!! Auth Failed: {error}", file=sys.stderr)
+            reason = error.get('reason', 'Invalid credentials or API key')
+            raise ConnectionError(f"Auth failed: {reason}")
+        print("<<< Auth Successful", file=sys.stderr)
 
     async def _listen(self):
-        """Listen for incoming messages and resolve futures."""
         try:
             async for message in self.ws:
                 data = json.loads(message)
-                msg_id = data.get("id")
-                if msg_id and msg_id in self._requests:
-                    self._requests[msg_id].set_result(data)
-                    del self._requests[msg_id]
+                msg_type = data.get("msg")
+                
+                if msg_type == "connected":
+                    self._connected_event.set()
+                elif msg_type == "ping":
+                    await self.send({"msg": "pong"})
+                elif msg_type in ["result", "error"]:
+                    msg_id = data.get("id")
+                    if msg_id in self._requests:
+                        self._requests[msg_id].set_result(data)
+                        del self._requests[msg_id]
         except Exception as e:
-            # Propagate error to all pending requests
-            for fut in self._requests.values():
-                if not fut.done():
-                    fut.set_exception(e)
-            self._requests.clear()
+            print(f"WS Listener error: {e}", file=sys.stderr)
 
     async def send(self, data: Dict[str, Any]):
-        """Send a message to the WebSocket."""
         if self.ws:
             await self.ws.send(json.dumps(data))
 
     async def call(self, method: str, params: List[Any], request_id: Optional[str] = None) -> Dict[str, Any]:
-        """Call a TrueNAS middleware method."""
         if not request_id:
             request_id = str(uuid.uuid4())
         
@@ -73,16 +89,8 @@ class TrueNASClient:
             "method": method,
             "params": params
         })
-        
-        try:
-            return await asyncio.wait_for(future, timeout=30.0)
-        except asyncio.TimeoutError:
-            del self._requests[request_id]
-            raise TimeoutError(f"Request {request_id} timed out")
+        return await asyncio.wait_for(future, timeout=30.0)
 
     async def close(self):
-        """Close the connection."""
-        if self._receive_task:
-            self._receive_task.cancel()
-        if self.ws:
-            await self.ws.close()
+        if self._receive_task: self._receive_task.cancel()
+        if self.ws: await self.ws.close()

@@ -10,13 +10,22 @@ mcp = FastMCP("truenas-mcp")
 # Environment variables for TrueNAS connection
 TRUENAS_URL = os.getenv("TRUENAS_URL")
 TRUENAS_API_KEY = os.getenv("TRUENAS_API_KEY")
+TRUENAS_USER = os.getenv("TRUENAS_USER")
+TRUENAS_PASS = os.getenv("TRUENAS_PASS")
 
 async def get_client() -> TrueNASClient:
     """Helper to get an authenticated TrueNAS client."""
-    if not TRUENAS_URL or not TRUENAS_API_KEY:
-        raise ValueError("TRUENAS_URL and TRUENAS_API_KEY environment variables must be set.")
+    if not TRUENAS_URL:
+        raise ValueError("TRUENAS_URL environment variable must be set.")
     
-    client = TrueNASClient(TRUENAS_URL, TRUENAS_API_KEY)
+    # Try username/pass first for insecure transport, then fallback to API Key
+    if TRUENAS_USER and TRUENAS_PASS:
+        client = TrueNASClient(TRUENAS_URL, username=TRUENAS_USER, password=TRUENAS_PASS)
+    elif TRUENAS_API_KEY:
+        client = TrueNASClient(TRUENAS_URL, api_key=TRUENAS_API_KEY)
+    else:
+        raise ValueError("Either TRUENAS_USER/TRUENAS_PASS or TRUENAS_API_KEY must be set.")
+        
     await client.connect()
     return client
 
@@ -71,16 +80,15 @@ async def get_method_help(method: str) -> str:
         await client.close()
 
 @mcp.tool()
-async def execute_custom_api_call(method: str, params: list = None) -> str:
+async def execute_custom_api_call(method: str, params: list = []) -> str:
     """Execute ANY arbitrary TrueNAS API method. Use this for discovery or niche tasks.
-    'params' should be a list of positional arguments as expected by the TrueNAS middleware."""
-    if params is None:
-        params = []
+    'params' should be a list of positional arguments (e.g., [])."""
     
     client = await get_client()
     try:
         response = await client.call(method, params)
-        return f"Response from {method}:\n" + json.dumps(response.get("result", {}), indent=2)
+        result = response.get("result")
+        return f"Response from {method}:\n" + json.dumps(result, indent=2)
     except Exception as e:
         return f"Error executing {method}: {str(e)}"
     finally:
@@ -93,8 +101,6 @@ async def start_vm(vm_id: str) -> str:
     """Start a specific virtual machine by its ID or Name."""
     client = await get_client()
     try:
-        # TrueNAS usually expects the integer ID for VM actions
-        # We try to parse the id if it's numeric
         target_id = int(vm_id) if vm_id.isdigit() else vm_id
         await client.call("vm.start", [target_id])
         return f"Successfully sent start command to VM: {vm_id}"
@@ -141,8 +147,14 @@ async def get_system_info() -> str:
     try:
         response = await client.call("system.info", [])
         result = response.get("result", {})
-        return (f"TrueNAS System Info:\n- Hostname: {result.get('hostname')}\n- Version: {result.get('version')}\n"
-                f"- Build: {result.get('build_time')}\n- Platform: {result.get('platform')}")
+        
+        hostname = result.get('hostname') or result.get('host') or 'Unknown'
+        version = result.get('version') or result.get('full_version') or 'Unknown'
+        build = result.get('build_time') or result.get('buildtime') or 'Unknown'
+        platform = result.get('platform') or 'TrueNAS'
+        
+        return (f"TrueNAS System Info:\n- Hostname: {hostname}\n- Version: {version}\n"
+                f"- Build: {build}\n- Platform: {platform}")
     except Exception as e:
         return await handle_request_error(e, "system.info")
     finally:
