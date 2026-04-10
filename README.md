@@ -1,19 +1,32 @@
 # TrueNAS MCP Server
 
-A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for interacting with TrueNAS Middleware via WebSocket.
+A professional [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for interacting with TrueNAS Middleware via WebSocket.
 
-## Features
-- **Get System Info**: Retrieve TrueNAS version, hostname, and basic status.
+## 🚀 Overview
+This MCP server provides a comprehensive set of "skills" (tools) to manage and monitor TrueNAS systems. It is designed to work seamlessly with both **TrueNAS SCALE** and **TrueNAS Core**.
+
+## ✨ Features & Skills
+
+### Core Skills (Works on SCALE & Core)
+- **Get System Info**: Retrieve TrueNAS version, hostname, and platform details.
 - **List VMs**: List all virtual machines and their current state.
-- **List Apps**: List installed chart releases and their statuses.
-- **List Users**: List non-system user accounts.
+- **List Storage Pools**: Monitor ZFS storage pools, health, and scrub status.
+- **List Datasets**: List ZFS datasets and their mount points.
+- **Get Alerts**: Retrieve active system alerts and warnings.
+- **List Services**: Check the status of system services (SMB, SSH, etc.).
+- **List Users**: List non-system user accounts and their status.
+- **List Network Interfaces**: View network configuration and link states.
 
-## Configuration
+### Platform-Specific Skills
+- **List Apps (SCALE Only)**: List installed chart releases and namespaces.
+- **List Jails (Core Only)**: List FreeBSD Jails and their release versions.
+
+## 🛠️ Configuration
 The following environment variables are required:
 - `TRUENAS_URL`: The WebSocket URL of your TrueNAS instance (e.g., `wss://192.168.1.100/websocket`).
-- `TRUENAS_API_KEY`: A valid TrueNAS API Key with appropriate permissions.
+- `TRUENAS_API_KEY`: A valid TrueNAS API Key.
 
-## Installation & Usage
+## 📦 Installation & Usage
 
 ### Using Docker
 ```bash
@@ -22,6 +35,12 @@ docker run -e TRUENAS_URL=... -e TRUENAS_API_KEY=... mcp/truenas
 
 ### Local Development
 ```bash
-uv pip install -e .
+# Install dependencies
+pip install -e .
+
+# Run the server
 truenas-mcp
 ```
+
+## ⚖️ License
+MIT
