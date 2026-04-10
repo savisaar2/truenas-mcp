@@ -69,5 +69,15 @@ pip install -e .
 truenas-mcp
 ```
 
+## 🛡️ Security
+
+### Security Policy
+If you discover any security-related issues, please report them by opening a GitHub issue or contacting the maintainer directly. 
+
+### Best Practices
+- **API Keys**: Only use API keys over encrypted `wss://` connections.
+- **Local Auth**: Use `TRUENAS_USER` and `TRUENAS_PASS` for local `ws://` connections.
+- **Principle of Least Privilege**: Ensure your TrueNAS user/API key only has the permissions necessary for the tools you intend to use.
+
 ## ⚖️ License
-MIT
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.

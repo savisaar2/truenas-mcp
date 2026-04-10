@@ -5,6 +5,7 @@ description = "Professional Model Context Protocol (MCP) server for TrueNAS SCAL
 authors = [
     { name = "Savisaar2" }
 ]
+license = "MIT"
 dependencies = [
     "mcp[cli]>=1.0.0",
     "websockets>=12.0",
