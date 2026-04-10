@@ -1,9 +1,9 @@
 [project]
 name = "truenas-mcp"
-version = "0.1.0"
-description = "Model Context Protocol (MCP) server for TrueNAS Middleware"
+version = "1.0.0"
+description = "Professional Model Context Protocol (MCP) server for TrueNAS SCALE and Core"
 authors = [
-    { name = "Your Name", email = "your.email@example.com" }
+    { name = "Savisaar2" }
 ]
 dependencies = [
     "mcp[cli]>=1.0.0",
