@@ -38,9 +38,20 @@ When a specific skill isn't listed above, the LLM can use these tools to access 
 - **Shutdown System**: Initiate a system shutdown (requires `confirm=True`).
 
 ## 🛠️ Configuration
-The following environment variables are required:
-- `TRUENAS_URL`: The WebSocket URL of your TrueNAS instance (e.g., `wss://192.168.1.100/websocket`).
+
+### Environment Variables
+The following environment variables are supported:
+- `TRUENAS_URL`: The WebSocket URL of your TrueNAS instance (e.g., `ws://192.168.1.100/websocket`).
 - `TRUENAS_API_KEY`: A valid TrueNAS API Key.
+- `TRUENAS_USER`: (Optional) TrueNAS username for session-based auth.
+- `TRUENAS_PASS`: (Optional) TrueNAS password for session-based auth.
+
+### ⚠️ Important Security Caveats
+To ensure a successful connection, please note the following TrueNAS middleware behaviors:
+
+1.  **API Key Security**: TrueNAS requires **Encrypted Transport (`wss://`)** for all API Key authentication. If you attempt to use an API Key over an unencrypted connection (`ws://`), TrueNAS will **instantly revoke the key** for security reasons.
+2.  **Insecure Transport Fallback**: If your environment requires an unencrypted connection (`ws://`), you **must** use the `TRUENAS_USER` and `TRUENAS_PASS` variables instead of an API Key. TrueNAS allows session-based authentication over insecure local connections.
+3.  **Self-Signed Certificates**: This server is configured to bypass SSL verification by default, making it compatible with TrueNAS instances using default self-signed certificates over `wss://`.
 
 ## 📦 Installation & Usage
 
